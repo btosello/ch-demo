@@ -538,4 +538,4 @@ kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller
 
 ## 📄 License
 
-MIT License - See LICENSE file for details.
+Devops - Benjamin Tosello
