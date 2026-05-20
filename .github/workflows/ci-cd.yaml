@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - develop
+      - staging
     tags:
       - 'v*'
   pull_request:
@@ -201,13 +201,13 @@ jobs:
           kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/production-manifests.yaml
 
   # ============================================
-  # Job 5: Deploy to Staging (on develop branch)
+  # Job 5: Deploy to Staging (on staging branch)
   # ============================================
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: [build-image, validate-manifests, security-scan]
-    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/staging' && github.event_name == 'push'
     environment:
       name: staging
       url: https://staging.websocket.example.com
