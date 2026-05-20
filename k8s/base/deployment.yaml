@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: websocket-server
+  namespace: websocket-app
+  labels:
+    app.kubernetes.io/name: websocket-server
+    app.kubernetes.io/component: server
+    app.kubernetes.io/part-of: websocket-service
+spec:
+  replicas: 3
+  # Rolling update strategy for zero-downtime deployments
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # Allow 1 extra pod during update
+      maxUnavailable: 0  # Never reduce available pods during update
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: websocket-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: websocket-server
+        app.kubernetes.io/component: server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Security context at pod level
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      # Graceful shutdown - give time for connection draining
+      terminationGracePeriodSeconds: 60
+      
+      containers:
+        - name: websocket-server
+          image: websocket-server:latest
+          imagePullPolicy: IfNotPresent
+          
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          
+          # Environment variables
+          env:
+            - name: PORT
+              value: "8080"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          
+          # Resource management
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          
+          # Liveness probe - restart if unhealthy
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          # Readiness probe - remove from service if not ready
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          
+          # Startup probe - for slow starting containers
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          
+          # Security context at container level
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          
+          # Lifecycle hooks for graceful shutdown
+          lifecycle:
+            preStop:
+              exec:
+                # Give time for load balancer to remove pod from rotation
+                command: ["/bin/sh", "-c", "sleep 15"]
+      
+      # Pod anti-affinity to spread replicas across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - websocket-server
+                topologyKey: kubernetes.io/hostname

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benjamin Tosello WebSocket Real-Time Demo</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #00d9ff;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .status.connected { background: rgba(0, 255, 100, 0.2); color: #00ff64; }
+        .status.disconnected { background: rgba(255, 0, 100, 0.2); color: #ff6464; }
+        .status.connecting { background: rgba(255, 200, 0, 0.2); color: #ffc800; }
+        #messages {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .message {
+            padding: 10px 15px;
+            margin: 8px 0;
+            border-radius: 8px;
+            background: rgba(0, 217, 255, 0.1);
+            border-left: 3px solid #00d9ff;
+            word-wrap: break-word;
+        }
+        .message .time {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 5px;
+        }
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 1rem;
+        }
+        input[type="text"]::placeholder { color: #666; }
+        input[type="text"]:focus { outline: 2px solid #00d9ff; }
+        button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            background: #00d9ff;
+            color: #1a1a2e;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s, background 0.2s;
+        }
+        button:hover { background: #00b8d9; transform: scale(1.02); }
+        button:active { transform: scale(0.98); }
+        .info {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            color: #00d9ff;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 0.8rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 Benjamin Tosello WebSocket Real-Time Demo</h1>
+        <div id="status" class="status connecting">Connecting...</div>
+        
+        <div id="messages"></div>
+        
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Type a message..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="sentCount">0</div>
+                <div class="stat-label">Sent</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="receivedCount">0</div>
+                <div class="stat-label">Received</div>
+            </div>
+        </div>
+        
+        <div class="info">
+            <p>Connected to: <code id="wsUrl"></code></p>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let sentCount = 0;
+        let receivedCount = 0;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        
+        function getWebSocketUrl() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${protocol}//${window.location.host}/ws`;
+        }
+        
+        function connect() {
+            const wsUrl = getWebSocketUrl();
+            document.getElementById('wsUrl').textContent = wsUrl;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('Connected to WebSocket');
+                document.getElementById('status').textContent = '✓ Connected';
+                document.getElementById('status').className = 'status connected';
+                reconnectAttempts = 0;
+                addMessage({ type: 'system', content: 'Connected to server' });
+            };
+            
+            ws.onmessage = (event) => {
+                receivedCount++;
+                document.getElementById('receivedCount').textContent = receivedCount;
+                try {
+                    const data = JSON.parse(event.data);
+                    addMessage(data);
+                } catch (e) {
+                    addMessage({ content: event.data, timestamp: new Date().toISOString() });
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('Disconnected from WebSocket');
+                document.getElementById('status').textContent = '✗ Disconnected';
+                document.getElementById('status').className = 'status disconnected';
+                addMessage({ type: 'system', content: 'Disconnected from server' });
+                
+                // Auto reconnect
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    setTimeout(() => {
+                        document.getElementById('status').textContent = `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`;
+                        document.getElementById('status').className = 'status connecting';
+                        connect();
+                    }, 2000 * reconnectAttempts);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        function addMessage(data) {
+            const messagesDiv = document.getElementById('messages');
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            
+            const time = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+            messageEl.innerHTML = `
+                <div>${escapeHtml(data.content || JSON.stringify(data))}</div>
+                <div class="time">${time}</div>
+            `;
+            
+            messagesDiv.appendChild(messageEl);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (message && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(message);
+                sentCount++;
+                document.getElementById('sentCount').textContent = sentCount;
+                input.value = '';
+            }
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // Initialize connection
+        connect();
+    </script>
+</body>
+</html>
