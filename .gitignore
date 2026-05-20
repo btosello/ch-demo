@@ -1,0 +1,42 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+websocket-server
+
+# Test coverage
+*.out
+coverage.*
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+
+# Secrets - NEVER commit these
+*.pem
+*.key
+secrets.yaml
+*-secrets.yaml
+
+# Build artifacts
+dist/
+build/
+
+general.txt
+INTERVIEW_PREP.md

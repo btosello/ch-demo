@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: websocket-app
+
+resources:
+  - ../../base
+
+# Use local image tag for minikube
+images:
+  - name: websocket-server
+    newName: websocket-server
+    newTag: local
+
+# Patches for local development
+patches:
+  # Reduce replicas for local environment
+  - target:
+      kind: Deployment
+      name: websocket-server
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "50m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "32Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "200m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "128Mi"
+  
+  # Adjust HPA for local environment
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: websocket-server
+    patch: |
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+
+commonLabels:
+  environment: local
