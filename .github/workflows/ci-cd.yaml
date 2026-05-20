@@ -173,17 +173,17 @@ jobs:
       - name: Validate base manifests
         run: |
           kustomize build k8s/base > /tmp/base-manifests.yaml
-          kubectl apply --dry-run=client -f /tmp/base-manifests.yaml
+          kubectl apply --dry-run=client --validate=false -f /tmp/base-manifests.yaml
 
       - name: Validate local overlay
         run: |
           kustomize build k8s/overlays/local > /tmp/local-manifests.yaml
-          kubectl apply --dry-run=client -f /tmp/local-manifests.yaml
+          kubectl apply --dry-run=client --validate=false -f /tmp/local-manifests.yaml
 
       - name: Validate production overlay
         run: |
           kustomize build k8s/overlays/production > /tmp/production-manifests.yaml
-          kubectl apply --dry-run=client -f /tmp/production-manifests.yaml
+          kubectl apply --dry-run=client --validate=false -f /tmp/production-manifests.yaml
 
       - name: Run kubeconform
         uses: docker://ghcr.io/yannh/kubeconform:latest
