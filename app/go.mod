@@ -1,4 +1,4 @@
-module github.com/benjamintosello/websocket-service
+module websocket-service
 
 go 1.22
 
