@@ -169,11 +169,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: 'v1.30.0'
-
       - name: Cache kustomize
         uses: actions/cache@v4
         with:
@@ -185,25 +180,25 @@ jobs:
         with:
           kustomize-version: '5.4.1'
 
-      - name: Validate base manifests
+      - name: Install kubeconform
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Build and validate base manifests
         run: |
           kustomize build k8s/base > /tmp/base-manifests.yaml
-          kubectl apply --dry-run=client --validate=false -f /tmp/base-manifests.yaml
+          kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/base-manifests.yaml
 
-      - name: Validate local overlay
+      - name: Build and validate local overlay
         run: |
           kustomize build k8s/overlays/local > /tmp/local-manifests.yaml
-          kubectl apply --dry-run=client --validate=false -f /tmp/local-manifests.yaml
+          kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/local-manifests.yaml
 
-      - name: Validate production overlay
+      - name: Build and validate production overlay
         run: |
           kustomize build k8s/overlays/production > /tmp/production-manifests.yaml
-          kubectl apply --dry-run=client --validate=false -f /tmp/production-manifests.yaml
-
-      - name: Run kubeconform
-        uses: docker://ghcr.io/yannh/kubeconform:latest
-        with:
-          args: "-summary -output json /tmp/base-manifests.yaml"
+          kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/production-manifests.yaml
 
   # ============================================
   # Job 5: Deploy to Staging (on develop branch)
